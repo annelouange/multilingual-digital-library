@@ -1,0 +1,8 @@
+# MULTILINGUAL DIGITAL LIBRARY production operations examples
+# Adjust paths before installing with crontab or Windows Task Scheduler.
+
+# Every 5 minutes: health monitor
+*/5 * * * * pwsh -NoProfile -ExecutionPolicy Bypass -File /var/www/multilingual-digital-library/scripts/monitor_health.ps1
+
+# Nightly database backup at 02:15
+15 2 * * * pwsh -NoProfile -ExecutionPolicy Bypass -File /var/www/multilingual-digital-library/scripts/backup_database.ps1

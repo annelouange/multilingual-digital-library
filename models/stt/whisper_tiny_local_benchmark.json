@@ -1,0 +1,39 @@
+{
+  "model": "whisper-tiny.en",
+  "task": "Open-vocabulary English speech-to-text",
+  "dataset": "LibriSpeech test-clean",
+  "samples": 5,
+  "aggregate_wer": 0.08333333333333333,
+  "aggregate_word_accuracy": 0.9166666666666666,
+  "aggregate_cer": 0.030226700251889168,
+  "aggregate_character_accuracy": 0.9697732997481108,
+  "mean_cpu_inference_seconds": 20.62,
+  "warning": "This is a small integration audit, not a statistically sufficient general model evaluation.",
+  "sample_results": [
+    {
+      "file": "1089-134686-0000.flac",
+      "seconds": 43.16,
+      "wer": 0.0714
+    },
+    {
+      "file": "1089-134686-0001.flac",
+      "seconds": 10.11,
+      "wer": 0.375
+    },
+    {
+      "file": "1089-134686-0002.flac",
+      "seconds": 23.36,
+      "wer": 0.0
+    },
+    {
+      "file": "1089-134686-0003.flac",
+      "seconds": 12.63,
+      "wer": 0.0
+    },
+    {
+      "file": "1089-134686-0004.flac",
+      "seconds": 13.85,
+      "wer": 0.0909
+    }
+  ]
+}

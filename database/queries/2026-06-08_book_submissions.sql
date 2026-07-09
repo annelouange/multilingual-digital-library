@@ -1,0 +1,33 @@
+USE multilingual_digital_library;
+
+CREATE TABLE IF NOT EXISTS book_submissions (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  submitted_by BIGINT UNSIGNED NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  isbn VARCHAR(80) NULL,
+  publisher VARCHAR(160) NULL,
+  publication_year YEAR NULL,
+  description TEXT NULL,
+  keywords TEXT NULL,
+  total_copies INT UNSIGNED NOT NULL DEFAULT 1,
+  file_type ENUM('pdf','txt','audio','other') NOT NULL,
+  file_path VARCHAR(255) NOT NULL,
+  original_name VARCHAR(255) NOT NULL,
+  source_name VARCHAR(255) NULL,
+  mime_type VARCHAR(120) NULL,
+  file_size BIGINT UNSIGNED NULL,
+  converted_to_pdf TINYINT(1) NOT NULL DEFAULT 0,
+  status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  reviewed_by BIGINT UNSIGNED NULL,
+  reviewed_at DATETIME NULL,
+  review_note TEXT NULL,
+  approved_book_id BIGINT UNSIGNED NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_book_submissions_submitter (submitted_by),
+  INDEX idx_book_submissions_status (status),
+  INDEX idx_book_submissions_reviewer (reviewed_by),
+  CONSTRAINT fk_book_submissions_submitter FOREIGN KEY (submitted_by) REFERENCES users(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT fk_book_submissions_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  CONSTRAINT fk_book_submissions_book FOREIGN KEY (approved_book_id) REFERENCES books(id) ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

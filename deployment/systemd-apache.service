@@ -1,0 +1,12 @@
+[Unit]
+Description=MULTILINGUAL DIGITAL LIBRARY Apache/PHP frontend host
+After=network.target mysql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl start apache2
+ExecReload=/usr/bin/systemctl reload apache2
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

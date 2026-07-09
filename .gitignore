@@ -1,0 +1,91 @@
+# Environment variables - NEVER commit these!
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+venv/
+.venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Large data and model files
+speech_datasets/LibriSpeech/
+speech_datasets/processed/
+ml-speech/datasets/
+ml-speech/models/checkpoints/
+ml-speech/models/*.pt
+models/**/*.pt
+transformer_model/
+transformer_librispeech_model/
+transformer_model_candidate*/
+transformer_model_backup_*/
+lstm_librispeech_model/
+voice_data/
+training_logs/
+
+# Logs
+*.log
+backend.log
+server.log
+logs/
+
+# Composer
+vendor/
+
+# Node
+npm-debug.log
+yarn-error.log
+
+# IDE
+.vscode/
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# Upload directories
+backend/uploads/
+book_imports/books/
+book_imports/cache/
+book_imports/logs/
+temp/
+tmp/
+backups/
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+~$*
+
+# Generated document/presentation inspection artifacts
+*.inspect.ndjson
+*.md
+
+# Cache
+.cache/
+*.cache
+
+# PHP
+.php_cs.cache
+
+# Testing
+coverage/
+.phpunit.result.cache
+
+# Build output
+dist/
+desktop/release/
+
+# Installers (downloaded files)
+*.exe
+*.msi

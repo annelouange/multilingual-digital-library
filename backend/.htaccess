@@ -1,0 +1,11 @@
+Options -Indexes
+RewriteEngine On
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+<FilesMatch "(^\.env|composer\.(json|lock)|package(-lock)?\.json|.*\.(log|sql|bak|ini|ps1|sh))$">
+    Require all denied
+</FilesMatch>
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^.*$ index.php [QSA,L]

@@ -1,0 +1,29 @@
+{
+  "model": "facebook/wav2vec2-base-960h",
+  "model_type": "pretrained Wav2Vec2 Transformer encoder with CTC head",
+  "dataset": "LibriSpeech real held-out audio",
+  "evaluated_at": "2026-06-09",
+  "warning": "This 40-file audit validates the transfer-learning direction but is not the final adapter benchmark.",
+  "splits": [
+    {
+      "split": "dev-clean",
+      "samples": 20,
+      "wer": 0.05185897435897435,
+      "word_accuracy": 0.9481410256410256,
+      "cer": 0.016011396011396013,
+      "sentence_exact_accuracy": 0.8,
+      "elapsed_seconds": 94.54
+    },
+    {
+      "split": "test-clean",
+      "samples": 20,
+      "wer": 0.044880952380952376,
+      "word_accuracy": 0.9551190476190476,
+      "cer": 0.015327858416093711,
+      "sentence_exact_accuracy": 0.7,
+      "elapsed_seconds": 74.29
+    }
+  ],
+  "aggregate_word_accuracy": 0.9516300366300366,
+  "aggregate_sentence_exact_accuracy": 0.75
+}

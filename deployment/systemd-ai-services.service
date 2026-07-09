@@ -1,0 +1,14 @@
+[Unit]
+Description=MULTILINGUAL DIGITAL LIBRARY AI speech services
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/multilingual-digital-library
+EnvironmentFile=/var/www/multilingual-digital-library/.env.production
+ExecStart=/usr/bin/pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/start_ai_services.ps1
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,44 @@
+books
+I want a book
+find a book
+search for a book
+show available books
+Digital Library Systems
+Human Computer Interaction
+Faculty of Economics, Social Sciences and Management
+Faculty of Education
+Faculty of Engineering and Technology
+Faculty of Health Sciences
+Faculty of Law and Public Administration
+Faculty of Sciences and Information Technology
+Anaesthesia
+Applied Economics
+Architecture
+Biology and Chemistry Education
+Biomedical Laboratory Sciences
+Biotechnologies
+Civil Engineering
+Computer Science
+Computer System Technology
+Cooperatives Management
+Crop Production
+Electrical Power Engineering
+Enterprises Management
+Entrepreneurship and SME Management
+French and English Education
+General Nursing
+Information Sciences and Library Management
+Land Management and Valuation
+Land Survey
+Law
+Mathematics and Computer Science Education
+Mathematics and Physics Education
+Microfinance
+Midwifery
+Pharmacy
+Public Administration and Good Governance
+Renewable Energy Engineering
+Research Methods
+Statistics Applied to Economy
+Taxation
+Water Engineering

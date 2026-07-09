@@ -1,0 +1,49 @@
+name: digital-library-ci
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - codex/**
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo_mysql, curl, fileinfo, zip
+          coverage: none
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: PHP syntax check
+        shell: pwsh
+        run: |
+          php -l backend/index.php
+          php -l backend/config/app.php
+          php -l backend/config/cors.php
+          php -l backend/config/security.php
+          php -l backend/config/database.php
+          php -l backend/routes/api.php
+
+      - name: Production static checks
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/production_check.ps1 -EnvironmentFile .env.example -SkipBuild -SkipHealth

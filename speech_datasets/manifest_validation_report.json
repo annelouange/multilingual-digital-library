@@ -1,0 +1,49 @@
+{
+  "manifest_root": "speech_datasets\\manifests",
+  "results": [
+    {
+      "manifest": "speech_datasets\\manifests\\train.jsonl",
+      "exists": true,
+      "total_lines": 28539,
+      "valid_samples": 28539,
+      "invalid_samples": 0,
+      "audio_missing": 0,
+      "audio_corrupt": 0,
+      "missing_fields": 0,
+      "invalid_json": 0,
+      "duration_seconds": 362127.16675000126,
+      "examples": [],
+      "duration_hours": 100.591
+    },
+    {
+      "manifest": "speech_datasets\\manifests\\dev.jsonl",
+      "exists": true,
+      "total_lines": 2703,
+      "valid_samples": 2703,
+      "invalid_samples": 0,
+      "audio_missing": 0,
+      "audio_corrupt": 0,
+      "missing_fields": 0,
+      "invalid_json": 0,
+      "duration_seconds": 19396.12075000001,
+      "examples": [],
+      "duration_hours": 5.388
+    },
+    {
+      "manifest": "speech_datasets\\manifests\\test.jsonl",
+      "exists": true,
+      "total_lines": 2620,
+      "valid_samples": 2620,
+      "invalid_samples": 0,
+      "audio_missing": 0,
+      "audio_corrupt": 0,
+      "missing_fields": 0,
+      "invalid_json": 0,
+      "duration_seconds": 19452.48062500003,
+      "examples": [],
+      "duration_hours": 5.403
+    }
+  ],
+  "all_valid": true,
+  "ready_for_training": true
+}

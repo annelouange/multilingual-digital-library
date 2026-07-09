@@ -1,0 +1,38 @@
+{
+  "name": "digital-library",
+  "version": "1.0.0",
+  "description": "MULTILINGUAL DIGITAL LIBRARY React frontend and live acceptance tooling",
+  "type": "module",
+  "scripts": {
+    "start": "npm run dev",
+    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev_system.ps1",
+    "dev:frontend": "vite",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4173",
+    "start:ai": "powershell -ExecutionPolicy Bypass -File scripts/start_ai_services.ps1",
+    "test:live": "node scripts/live_system_acceptance.mjs",
+    "check:production": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/production_check.ps1",
+    "backup:db": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backup_database.ps1",
+    "monitor:health": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/monitor_health.ps1"
+  },
+  "keywords": [
+    "digital-library",
+    "books",
+    "speech-to-text",
+    "text-to-speech",
+    "voice-recognition"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "mysql2": "^3.22.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.2",
+    "vite": "^8.0.16"
+  }
+}

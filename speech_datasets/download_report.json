@@ -1,0 +1,21 @@
+{
+  "created_at": "2026-06-06 04:08:15",
+  "purpose": "Real English speech-to-text data for Transformer STT evaluation and future fine-tuning",
+  "model_requirement": "Wav2Vec2 Transformer CTC; retired RNN/LSTM experiments have been removed",
+  "results": [
+    {
+      "split": "test-clean",
+      "status": "already_prepared",
+      "audio_files": 2620,
+      "transcript_files": 87
+    },
+    {
+      "split": "train-clean-100",
+      "status": "prepared",
+      "audio_files": 28539,
+      "transcript_files": 585
+    }
+  ],
+  "training_command": "python scripts/transformer_train_complete.py --phase 1",
+  "evaluation_command": "Use scripts/transformer_speech_service.py plus held-out LibriSpeech manifests; write final metrics to models/stt/transformer_metrics.json"
+}
