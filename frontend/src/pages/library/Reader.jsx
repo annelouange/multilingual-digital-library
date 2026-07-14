@@ -416,7 +416,7 @@ export default function Reader() {
         <article className="reader-shell">
           <section className="reader-book-pane">
             <div className="reader-book-toolbar">
-              <strong>Original and translated reader</strong>
+              <strong>Dual-page reader</strong>
               <div className="reader-book-navigation">
                 <button type="button" aria-label="Previous page" disabled={pageNumber === 1 || navigationBusy} onClick={() => moveToAdjacentPage(-1)}><SkipBack size={17} /></button>
                 <span>Page {pageNumber} of {totalPages}</span>

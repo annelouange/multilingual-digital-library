@@ -14,6 +14,23 @@ $flags = Join-Path $PSScriptRoot 'speech_service_flags.ps1'
 if (Test-Path -LiteralPath $flags) {
     . $flags
 }
+
+function Initialize-AiCache {
+    $preferredRoot = if (Test-Path -LiteralPath 'D:\') { 'D:\smart-digital-library-cache' } else { Join-Path $root 'models\cache' }
+    $cacheRoot = if ($env:SMART_LIBRARY_AI_CACHE) { $env:SMART_LIBRARY_AI_CACHE } else { $preferredRoot }
+    New-Item -ItemType Directory -Force -Path $cacheRoot | Out-Null
+
+    $env:SMART_LIBRARY_AI_CACHE = $cacheRoot
+    $env:HF_HOME = if ($env:HF_HOME) { $env:HF_HOME } else { Join-Path $cacheRoot 'huggingface' }
+    $env:TRANSFORMERS_CACHE = if ($env:TRANSFORMERS_CACHE) { $env:TRANSFORMERS_CACHE } else { Join-Path $env:HF_HOME 'transformers' }
+    $env:HF_DATASETS_CACHE = if ($env:HF_DATASETS_CACHE) { $env:HF_DATASETS_CACHE } else { Join-Path $env:HF_HOME 'datasets' }
+    $env:TORCH_HOME = if ($env:TORCH_HOME) { $env:TORCH_HOME } else { Join-Path $cacheRoot 'torch' }
+    New-Item -ItemType Directory -Force -Path $env:HF_HOME, $env:TRANSFORMERS_CACHE, $env:HF_DATASETS_CACHE, $env:TORCH_HOME | Out-Null
+
+    Write-Host "[cache] AI models: $cacheRoot" -ForegroundColor DarkCyan
+}
+
+Initialize-AiCache
 New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
 New-Item -ItemType Directory -Force -Path $tmpDirectory | Out-Null
 

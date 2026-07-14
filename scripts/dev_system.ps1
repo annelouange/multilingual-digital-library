@@ -16,6 +16,21 @@ if (Test-Path -LiteralPath $flags) {
     . $flags
 }
 
+function Initialize-AiCache {
+    $preferredRoot = if (Test-Path -LiteralPath 'D:\') { 'D:\smart-digital-library-cache' } else { Join-Path $root 'models\cache' }
+    $cacheRoot = if ($env:SMART_LIBRARY_AI_CACHE) { $env:SMART_LIBRARY_AI_CACHE } else { $preferredRoot }
+    New-Item -ItemType Directory -Force -Path $cacheRoot | Out-Null
+
+    $env:SMART_LIBRARY_AI_CACHE = $cacheRoot
+    $env:HF_HOME = if ($env:HF_HOME) { $env:HF_HOME } else { Join-Path $cacheRoot 'huggingface' }
+    $env:TRANSFORMERS_CACHE = if ($env:TRANSFORMERS_CACHE) { $env:TRANSFORMERS_CACHE } else { Join-Path $env:HF_HOME 'transformers' }
+    $env:HF_DATASETS_CACHE = if ($env:HF_DATASETS_CACHE) { $env:HF_DATASETS_CACHE } else { Join-Path $env:HF_HOME 'datasets' }
+    $env:TORCH_HOME = if ($env:TORCH_HOME) { $env:TORCH_HOME } else { Join-Path $cacheRoot 'torch' }
+    New-Item -ItemType Directory -Force -Path $env:HF_HOME, $env:TRANSFORMERS_CACHE, $env:HF_DATASETS_CACHE, $env:TORCH_HOME | Out-Null
+
+    Write-Host "[cache] AI models: $cacheRoot" -ForegroundColor DarkCyan
+}
+
 function Get-PortListener([int]$Port) {
     $pattern = "^\s*TCP\s+\S+:$Port\s+\S+\s+LISTENING\s+\d+"
     return netstat -ano -p tcp | Select-String -Pattern $pattern | Select-Object -First 1
@@ -111,6 +126,7 @@ if (-not (Test-Path -LiteralPath $vite)) {
 Write-Host ''
 Write-Host 'MULTILINGUAL DIGITAL LIBRARY development system' -ForegroundColor Cyan
 Write-Host '---------------------------------------'
+Initialize-AiCache
 
 Start-XamppService 'Apache' 80 'apache_start.bat' 120
 Start-XamppService 'MySQL' 3306 'mysql_start.bat'
