@@ -62,6 +62,7 @@ export default function Reader() {
   const [navigationBusy, setNavigationBusy] = useState(false);
   const [preparedAudioUrl, setPreparedAudioUrl] = useState('');
   const [audioReady, setAudioReady] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
   const initializedRef = useRef(false);
   const audioRef = useRef(null);
   const startedAtRef = useRef(0);
@@ -102,6 +103,10 @@ export default function Reader() {
   }, [progressState.loading, progressState.data]);
 
   useEffect(() => () => audioRef.current?.pause(), []);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [viewerUrl]);
 
   useEffect(() => {
     if (!preparedAudioUrl || !audioRef.current) {
@@ -427,14 +432,19 @@ export default function Reader() {
               <div className="reader-document-compare">
                 <div className="reader-document-column">
                   <div className="reader-document-label">Original document page</div>
-                  {viewerUrl ? (
+                  {viewerUrl && !imageFailed ? (
                     <div className="reader-page-image-wrap reader-page-image-wrap-compare">
-                      <img className="reader-page-image" src={viewerUrl} alt={`${book?.title} original page ${pageNumber}`} />
+                      <img
+                        className="reader-page-image"
+                        src={viewerUrl}
+                        alt={`${book?.title} original page ${pageNumber}`}
+                        onError={() => setImageFailed(true)}
+                      />
                     </div>
                   ) : (
                     <div className="reader-translated-page reader-translated-page-loading">
-                      <h2>No viewable original page</h2>
-                      <p>This book has no PDF page image available.</p>
+                      <h2>Original page preview unavailable</h2>
+                      <p>The readable text is still available for translation and narration. Try another page if this one is an image-only or cover page.</p>
                     </div>
                   )}
                 </div>
@@ -469,14 +479,14 @@ export default function Reader() {
                   )}
                 </div>
               </div>
-            ) : viewerUrl ? (
+            ) : viewerUrl && !imageFailed ? (
               <div className="reader-page-image-wrap">
-                <img className="reader-page-image" src={viewerUrl} alt={`${book?.title} page ${pageNumber}`} />
+                <img className="reader-page-image" src={viewerUrl} alt={`${book?.title} page ${pageNumber}`} onError={() => setImageFailed(true)} />
               </div>
             ) : (
               <div className="state-panel">
-                <h3>No viewable document</h3>
-                <p>This book has no PDF, Word, or text file attached yet.</p>
+                <h3>Original page preview unavailable</h3>
+                <p>The text reader can still translate and narrate extracted page content when available.</p>
               </div>
             )}
           </section>

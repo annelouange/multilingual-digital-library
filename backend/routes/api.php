@@ -999,9 +999,30 @@ function process_uploaded_library_file(array $file, string $relativeDirectory): 
 
 function resolve_stored_upload(array $file): array
 {
-    $absolute = realpath(__DIR__ . '/../' . $file['file_path']);
-    $uploadsRoot = realpath(__DIR__ . '/../uploads');
-    if (!$absolute || !$uploadsRoot || !str_starts_with(str_replace('\\', '/', $absolute), str_replace('\\', '/', $uploadsRoot))) {
+    $relativePath = str_replace(['\\', '..'], ['/', ''], (string)($file['file_path'] ?? ''));
+    $visiblePath = __DIR__ . '/../' . $relativePath;
+    $absolute = realpath($visiblePath);
+    $visibleUploadsRoot = rtrim(str_replace('\\', '/', realpath(__DIR__ . '/../uploads') ?: (__DIR__ . '/../uploads')), '/');
+    $resolvedUploadRoots = [$visibleUploadsRoot];
+    $firstSegment = strtok(trim($relativePath, '/'), '/');
+    $secondSegment = strtok('/');
+    if ($firstSegment === 'uploads' && $secondSegment) {
+        $resolvedSubRoot = realpath(__DIR__ . '/../uploads/' . $secondSegment);
+        if ($resolvedSubRoot) {
+            $resolvedUploadRoots[] = rtrim(str_replace('\\', '/', $resolvedSubRoot), '/');
+        }
+    }
+
+    $normalizedAbsolute = $absolute ? str_replace('\\', '/', $absolute) : '';
+    $isAllowed = false;
+    foreach (array_unique($resolvedUploadRoots) as $root) {
+        if ($normalizedAbsolute === $root || str_starts_with($normalizedAbsolute, $root . '/')) {
+            $isAllowed = true;
+            break;
+        }
+    }
+
+    if (!$absolute || !$isAllowed) {
         Response::error('File storage path is invalid', 404);
     }
     $file['absolute_path'] = $absolute;
