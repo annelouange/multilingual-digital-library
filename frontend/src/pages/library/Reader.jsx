@@ -17,7 +17,7 @@ const MAX_NARRATION_CHARS = 320;
 const MAX_TRANSLATED_PAGE_CHARS = 100000;
 const MAX_SERVER_TTS_CHARS = 950;
 const NARRATION_TIMEOUT_MS = 15000;
-const PAGE_TRANSLATION_TIMEOUT_MS = 120000;
+const PAGE_TRANSLATION_TIMEOUT_MS = 180000;
 const PLAY_START_TIMEOUT_MS = 5000;
 
 function narrationExcerpt(text, maxLength = MAX_NARRATION_CHARS) {
@@ -144,7 +144,7 @@ export default function Reader() {
         quality_mode: 'fast',
       }),
       PAGE_TRANSLATION_TIMEOUT_MS,
-      'Page translation is still preparing. Try this page again in a moment.'
+      'Full page translation is still preparing. Try this page again in a moment.'
     )
       .then((response) => {
         const translated = String(response.data?.translated_text || '').trim();
@@ -327,7 +327,6 @@ export default function Reader() {
           utterance.onerror = () => setSpeechState('idle');
           startedAtRef.current = Date.now();
           setSpeechState('playing');
-          setSpeechError('Using quick browser narration while server audio prepares.');
           return;
         } catch {
         }
@@ -464,8 +463,8 @@ export default function Reader() {
                     </div>
                   ) : (
                     <div className="reader-translated-page reader-translated-page-loading">
-                      <h2>Translation not ready</h2>
-                      <p>Try this page again in a moment, or move to another page while the AI service is warming up.</p>
+                      <h2>Full translation is still preparing</h2>
+                      <p>This long page needs more time on the local AI model. Keep this page open or try again in a moment.</p>
                     </div>
                   )}
                 </div>
@@ -492,7 +491,7 @@ export default function Reader() {
             <div className="reader-text">
               <h2>{pageState.loading ? 'Preparing page text...' : `Page ${pageNumber}`}</h2>
               {translationStatus === 'loading' && <small>Translating this page into {narrationLanguageLabel}...</small>}
-              {translationStatus === 'fallback' && <small>The {narrationLanguageLabel} translation is not ready yet, so the original page is shown.</small>}
+              {translationStatus === 'fallback' && <small>The full {narrationLanguageLabel} translation is still preparing. The original text remains visible until it finishes.</small>}
               <p>{displayedPageText || 'This page is viewable, but no readable text was found for narration.'}</p>
             </div>
             <div className="reader-options">

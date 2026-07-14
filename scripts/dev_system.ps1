@@ -53,6 +53,55 @@ function Start-XamppService([string]$Name, [int]$Port, [string]$StarterName, [in
     Wait-ForPort $Name $Port $TimeoutSeconds
 }
 
+function Invoke-JsonPost([string]$Name, [string]$Url, [hashtable]$Payload, [int]$TimeoutSeconds = 60) {
+    $body = $Payload | ConvertTo-Json -Depth 6
+    try {
+        return Invoke-RestMethod -Uri $Url -Method Post -ContentType 'application/json; charset=utf-8' -Body $body -TimeoutSec $TimeoutSeconds
+    } catch {
+        throw "$Name failed: $($_.Exception.Message)"
+    }
+}
+
+function Warmup-AiServices {
+    if ($EnableSmartTranslation) {
+        Write-Host '[warmup] English to French translation model' -ForegroundColor Cyan
+        $enFr = Invoke-JsonPost 'English to French translation warmup' 'http://127.0.0.1:8001/translate' @{
+            text = 'Students can read and listen to library pages.'
+            source_language = 'en'
+            target_language = 'fr'
+            quality_mode = 'fast'
+        } 120
+        if (-not $enFr.success -or [string]::IsNullOrWhiteSpace($enFr.translated_text)) {
+            throw 'English to French translation warmup returned no translated text.'
+        }
+        Write-Host '[ready] English to French translation model warmed' -ForegroundColor Green
+
+        Write-Host '[warmup] French to English translation model' -ForegroundColor Cyan
+        $frEn = Invoke-JsonPost 'French to English translation warmup' 'http://127.0.0.1:8001/translate' @{
+            text = 'Les etudiants peuvent lire et ecouter les pages de la bibliotheque.'
+            source_language = 'fr'
+            target_language = 'en'
+            quality_mode = 'fast'
+        } 120
+        if (-not $frEn.success -or [string]::IsNullOrWhiteSpace($frEn.translated_text)) {
+            throw 'French to English translation warmup returned no translated text.'
+        }
+        Write-Host '[ready] French to English translation model warmed' -ForegroundColor Green
+    }
+
+    if ($EnableMmsTts) {
+        Write-Host '[warmup] French MMS narration model' -ForegroundColor Cyan
+        $mms = Invoke-JsonPost 'French MMS narration warmup' 'http://127.0.0.1:5009/synthesize' @{
+            text = 'La narration francaise est prete.'
+            language = 'fr'
+        } 120
+        if (-not $mms.success -or [string]::IsNullOrWhiteSpace($mms.audio_base64)) {
+            throw 'French MMS narration warmup returned no audio.'
+        }
+        Write-Host '[ready] French MMS narration model warmed' -ForegroundColor Green
+    }
+}
+
 Set-Location $root
 
 if (-not (Test-Path -LiteralPath $vite)) {
@@ -73,6 +122,7 @@ if ($EnableTransformerStt) { Wait-ForPort 'Wav2Vec2 Transformer STT' 5006 120 } 
 if ($EnableSpeechT5Tts) { Wait-ForPort 'SpeechT5 TTS service' 5007 180 } else { Write-Host '[skip] SpeechT5 TTS disabled' -ForegroundColor Yellow }
 if ($EnableMmsTts) { Wait-ForPort 'MMS French TTS service' 5009 180 } else { Write-Host '[skip] MMS French TTS disabled' -ForegroundColor Yellow }
 if ($EnableSmartTranslation) { Wait-ForPort 'Smart translation service' 8001 180 } else { Write-Host '[skip] Smart translation service disabled' -ForegroundColor Yellow }
+Warmup-AiServices
 
 $backend = Invoke-RestMethod -Uri $backendHealthUrl -TimeoutSec 10
 $backendStatus = if ($backend.data -and $backend.data.status) { $backend.data.status } else { '' }
