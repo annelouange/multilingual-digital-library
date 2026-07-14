@@ -3,12 +3,14 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $xamppRoot = if ($env:XAMPP_ROOT) { $env:XAMPP_ROOT } else { 'C:\xampp' }
 $frontendHost = if ($env:FRONTEND_HOST) { $env:FRONTEND_HOST } else { '127.0.0.1' }
-$frontendPort = if ($env:FRONTEND_PORT) { [int]$env:FRONTEND_PORT } else { 3000 }
+$frontendPort = if ($env:FRONTEND_PORT) { [int]$env:FRONTEND_PORT } else { 3040 }
 $backendHealthUrl = if ($env:MDL_BACKEND_HEALTH_URL) { $env:MDL_BACKEND_HEALTH_URL } else { 'http://localhost/multilingual-library-startup/backend/health' }
 $vite = Join-Path $root 'node_modules\.bin\vite.cmd'
 $EnableWhisperFallbackStt = $true
 $EnableTransformerStt = $true
 $EnableSpeechT5Tts = $true
+$EnableMmsTts = $true
+$EnableSmartTranslation = $true
 $flags = Join-Path $PSScriptRoot 'speech_service_flags.ps1'
 if (Test-Path -LiteralPath $flags) {
     . $flags
@@ -69,6 +71,8 @@ Write-Host '[start] Speech services' -ForegroundColor Cyan
 if ($EnableWhisperFallbackStt) { Wait-ForPort 'Whisper fallback STT' 5001 120 } else { Write-Host '[skip] Whisper fallback STT disabled' -ForegroundColor Yellow }
 if ($EnableTransformerStt) { Wait-ForPort 'Wav2Vec2 Transformer STT' 5006 120 } else { Write-Host '[skip] Wav2Vec2 Transformer STT disabled' -ForegroundColor Yellow }
 if ($EnableSpeechT5Tts) { Wait-ForPort 'SpeechT5 TTS service' 5007 180 } else { Write-Host '[skip] SpeechT5 TTS disabled' -ForegroundColor Yellow }
+if ($EnableMmsTts) { Wait-ForPort 'MMS French TTS service' 5009 180 } else { Write-Host '[skip] MMS French TTS disabled' -ForegroundColor Yellow }
+if ($EnableSmartTranslation) { Wait-ForPort 'Smart translation service' 8001 180 } else { Write-Host '[skip] Smart translation service disabled' -ForegroundColor Yellow }
 
 $backend = Invoke-RestMethod -Uri $backendHealthUrl -TimeoutSec 10
 $backendStatus = if ($backend.data -and $backend.data.status) { $backend.data.status } else { '' }

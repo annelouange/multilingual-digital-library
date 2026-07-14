@@ -11,7 +11,7 @@ export default defineConfig({
   },
   server: {
     host: process.env.FRONTEND_HOST || '127.0.0.1',
-    port: Number(process.env.FRONTEND_PORT || 3000),
+    port: Number(process.env.FRONTEND_PORT || 3040),
     watch: {
       ignored: [
         '**/api-lib/**',
