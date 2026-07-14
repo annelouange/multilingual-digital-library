@@ -252,7 +252,7 @@ export default function SearchBooks() {
             {(categories.data || []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
           <select aria-label="Language" value={draft.language} onChange={(event) => setDraft({ ...draft, language: event.target.value })}>
-            <option value="">Any language</option><option value="en">English</option><option value="rw">Kinyarwanda</option><option value="fr">French</option><option value="sw">Kiswahili</option>
+            <option value="">Any language</option><option value="en">English</option><option value="fr">French</option>
           </select>
           <select aria-label="Access level" value={draft.access_level} onChange={(event) => setDraft({ ...draft, access_level: event.target.value })}>
             <option value="">Any access</option><option value="metadata_only">Metadata only</option><option value="read_online">Read online</option><option value="download">Download</option><option value="premium">Premium</option>

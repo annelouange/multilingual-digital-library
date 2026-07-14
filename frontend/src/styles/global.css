@@ -1,18 +1,18 @@
 :root {
   color-scheme: light;
-  --ink: #15211f;
-  --muted: #62706d;
-  --faint: #e7ece7;
-  --paper: #fbfbf6;
+  --ink: #16231f;
+  --muted: #63736e;
+  --faint: #e9efe8;
+  --paper: #f7faf2;
   --surface: #ffffff;
-  --surface-2: #f2f6f1;
-  --green: #1f6b55;
-  --green-soft: #e7f3ee;
-  --green-strong: #124435;
-  --blue: #245f82;
-  --amber: #a66012;
+  --surface-2: #f0f6ed;
+  --green: #25785f;
+  --green-soft: #e4f3eb;
+  --green-strong: #154b3c;
+  --blue: #276f8f;
+  --amber: #b27a18;
   --rose: #a33a47;
-  --line: #dfe7df;
+  --line: #d9e5d9;
   --shadow: 0 18px 45px rgba(21, 33, 31, 0.1);
   --radius: 8px;
   font-family: "Segoe UI", "Aptos", system-ui, sans-serif;
@@ -66,7 +66,7 @@ p { color: var(--muted); line-height: 1.55; }
   justify-items: stretch;
   gap: 0;
   padding: 0;
-  background: #f4f7f2;
+  background: #f6f9f1;
   min-height: 100svh;
 }
 .login-showcase {
@@ -76,8 +76,8 @@ p { color: var(--muted); line-height: 1.55; }
   padding: clamp(34px, 6vw, 86px);
   color: #fff;
   background:
-    linear-gradient(135deg, rgba(11, 52, 39, 0.96), rgba(25, 91, 65, 0.9)),
-    radial-gradient(circle at 20% 20%, rgba(255, 218, 108, 0.24), transparent 30%);
+    linear-gradient(135deg, rgba(17, 74, 58, 0.96), rgba(38, 119, 94, 0.9)),
+    radial-gradient(circle at 22% 18%, rgba(255, 220, 128, 0.26), transparent 32%);
 }
 .login-showcase-copy { max-width: 700px; }
 .login-logo {
@@ -90,7 +90,7 @@ p { color: var(--muted); line-height: 1.55; }
   box-shadow: 0 22px 48px rgba(0,0,0,0.2);
   margin-bottom: 20px;
 }
-.login-showcase .eyebrow { color: #f8d36f; }
+.login-showcase .eyebrow { color: #ffe08a; }
 .login-showcase h1 { max-width: 640px; font-size: clamp(2.35rem, 4.4vw, 4.35rem); line-height: 1.02; letter-spacing: 0; margin-bottom: 16px; }
 .login-showcase p { max-width: 640px; color: rgba(255,255,255,0.82); font-size: 1.08rem; }
 .login-panel {
@@ -190,7 +190,8 @@ p { color: var(--muted); line-height: 1.55; }
   font-weight: 800;
   min-height: 40px;
 }
-.button-primary { background: var(--green); color: white; }
+.button-primary { background: linear-gradient(135deg, var(--green), #2f8f6d); color: white; box-shadow: 0 10px 22px rgba(37, 120, 95, 0.18); }
+.button-primary:hover { background: linear-gradient(135deg, var(--green-strong), var(--green)); }
 .button-secondary { background: var(--surface-2); color: var(--green-strong); border-color: var(--line); }
 .button-ghost { background: transparent; color: var(--green-strong); border-color: var(--line); }
 .button-danger { background: #a53a47; color: white; border-color: #a53a47; }
@@ -411,6 +412,91 @@ th { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-
   box-shadow: 0 16px 42px rgba(12, 42, 34, 0.18);
   background: #fff;
 }
+.reader-document-compare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  height: min(76vh, 820px);
+  overflow: hidden;
+  padding: 14px;
+  background: #f4f8f4;
+}
+.reader-document-column {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+}
+.reader-document-label {
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: #fffefb;
+  border: 1px solid #e3eadf;
+  color: var(--green-strong);
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+.reader-page-image-wrap-compare {
+  height: auto;
+  min-height: 0;
+  padding: 12px;
+}
+.reader-translated-page-wrap {
+  height: min(76vh, 820px);
+  overflow: auto;
+  padding: 22px;
+  background: #f4f8f4;
+}
+.reader-translated-page {
+  width: min(100%, 760px);
+  min-height: 680px;
+  max-height: 100%;
+  overflow: auto;
+  margin: 0 auto;
+  padding: 28px 32px;
+  border-radius: 8px;
+  background: #fffefb;
+  border: 1px solid #e3eadf;
+  box-shadow: 0 16px 42px rgba(12, 42, 34, 0.14);
+  color: #17221f;
+  line-height: 1.65;
+}
+.reader-translated-page-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 22px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e3eadf;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.reader-translated-page-meta strong {
+  color: var(--green-strong);
+}
+.reader-translated-page h1 {
+  margin: 0 0 8px;
+  font-size: 1.18rem;
+  color: #10231d;
+}
+.reader-translated-page h2 {
+  margin: 0 0 18px;
+  font-size: 1rem;
+  color: var(--muted);
+}
+.reader-translated-page p {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 0.98rem;
+}
+.reader-translated-page-loading {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  text-align: center;
+  color: var(--muted);
+}
 .reader-book-toolbar {
   display: flex;
   justify-content: space-between;
@@ -454,6 +540,7 @@ th { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-
   max-height: 260px;
   overflow: auto;
 }
+.reader-text small { display: block; margin-bottom: 8px; color: var(--green-strong); font-weight: 700; }
 .reader-status { display: flex; justify-content: space-between; gap: 14px; color: var(--muted); }
 .reader-options { display: flex; justify-content: center; margin: 14px 0; }
 .reader-options label { width: min(220px, 100%); text-align: left; }
@@ -540,6 +627,21 @@ th { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-
   display: grid;
   grid-template-columns: minmax(320px, 2fr) repeat(3, minmax(170px, 1fr));
   gap: 10px;
+}
+.recommendation-picker {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) minmax(180px, 1fr) minmax(150px, 0.7fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+.recommendation-picker input,
+.recommendation-picker select {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0 12px;
 }
 .catalog-query { grid-column: span 2; }
 .catalog-search-form .button { min-height: 42px; }
@@ -683,6 +785,8 @@ th { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-
   .reader-shell { grid-template-columns: 1fr; }
   .reader-listen-pane { position: static; }
   .reader-page-image-wrap { height: min(66vh, 680px); }
+  .reader-document-compare { height: auto; grid-template-columns: 1fr; overflow: visible; }
+  .reader-page-image-wrap-compare, .reader-translated-page { max-height: min(66vh, 680px); }
   .dashboard-grid { grid-template-columns: 1fr; }
   .upload-grid { grid-template-columns: 1fr; }
   .ai-side-panel { position: static; }

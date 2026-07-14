@@ -523,7 +523,7 @@ function extract_document_text(string $path, int $maxChars = 500000): ?array
     ];
 }
 
-function extract_document_page_text(string $path, int $page = 1, int $maxChars = 3000): ?array
+function extract_document_page_text(string $path, int $page = 1, int $maxChars = 100000): ?array
 {
     $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
     if (!in_array($extension, ['pdf', 'docx', 'txt'], true)) {
@@ -536,11 +536,15 @@ function extract_document_page_text(string $path, int $page = 1, int $maxChars =
     if (is_file($sidecar) && is_file($metaSidecar)) {
         $text = trim((string)file_get_contents($sidecar));
         $meta = json_decode((string)file_get_contents($metaSidecar), true) ?: [];
-        if (array_key_exists('is_blank', $meta)) {
+        $cachedTextLength = mb_strlen($text);
+        $cachedCharacters = (int)($meta['characters'] ?? $cachedTextLength);
+        $cachedWasTruncated = (bool)($meta['truncated'] ?? false);
+        $legacyCutoffCache = !array_key_exists('characters', $meta) && $cachedTextLength >= 2950;
+        if (array_key_exists('is_blank', $meta) && !$legacyCutoffCache && (!$cachedWasTruncated || $cachedTextLength >= min($cachedCharacters, $maxChars))) {
             return [
                 'text' => mb_substr($text, 0, $maxChars),
-                'characters' => mb_strlen($text),
-                'truncated' => mb_strlen($text) > $maxChars,
+                'characters' => $cachedCharacters,
+                'truncated' => $cachedCharacters > $maxChars,
                 'page' => (int)($meta['page'] ?? $page),
                 'total_pages' => (int)($meta['total_pages'] ?? $page),
                 'is_blank' => (bool)$meta['is_blank'],
@@ -569,6 +573,8 @@ function extract_document_page_text(string $path, int $page = 1, int $maxChars =
         'page' => $actualPage,
         'total_pages' => $totalPages,
         'is_blank' => $isBlank,
+        'characters' => (int)($result['characters'] ?? mb_strlen($text)),
+        'truncated' => (bool)($result['truncated'] ?? false),
     ]));
 
     return [
@@ -626,16 +632,57 @@ function serve_image_file(array $file): void
     exit;
 }
 
-function prepare_tts_storage(array $user): array
+function prepare_tts_storage(array $user, bool $shared = false): array
 {
     $uploadRoot = realpath(__DIR__ . '/../uploads') ?: (__DIR__ . '/../uploads');
-    $relativeDirectory = 'tts/' . (int)$user['id'];
+    $relativeDirectory = $shared ? 'tts/shared' : 'tts/' . (int)$user['id'];
     $targetDirectory = $uploadRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativeDirectory);
     if (!is_dir($targetDirectory) && !mkdir($targetDirectory, 0775, true) && !is_dir($targetDirectory)) {
         Response::error('Could not prepare narration storage', 500);
     }
 
     return [$relativeDirectory, $targetDirectory];
+}
+
+function narration_cache_key(string $provider, string $language, string $voice, float $speed, string $text, ?int $bookId = null, ?int $pageNumber = null): string
+{
+    return hash('sha256', implode('|', [
+        'tts-v2',
+        $bookId ?: 'shared',
+        $pageNumber ?: 'page',
+        $language,
+        $voice,
+        number_format($speed, 2, '.', ''),
+        $provider,
+        hash('sha256', $text),
+    ]));
+}
+
+function record_narration_cache(?array $user, ?int $bookId, ?int $pageNumber, string $language, string $voice, float $speed, string $text, array $audio): void
+{
+    try {
+        pdo()->prepare(
+            'INSERT INTO narration_cache
+             (book_id, page_number, language, voice, speed, source_hash, cache_key, provider, model_name, model_version, audio_path, mime_type, file_size, processing_ms)
+             VALUES (:book_id, :page_number, :language, :voice, :speed, :source_hash, :cache_key, :provider, :model_name, "default", :audio_path, :mime_type, :file_size, :processing_ms)
+             ON DUPLICATE KEY UPDATE file_size=VALUES(file_size), processing_ms=VALUES(processing_ms), created_at=CURRENT_TIMESTAMP'
+        )->execute([
+            ':book_id' => $bookId,
+            ':page_number' => $pageNumber,
+            ':language' => $language,
+            ':voice' => $voice,
+            ':speed' => $speed,
+            ':source_hash' => hash('sha256', $text),
+            ':cache_key' => pathinfo($audio['filename'], PATHINFO_FILENAME),
+            ':provider' => $audio['provider'],
+            ':model_name' => $audio['provider'] === 'speecht5' ? 'microsoft/speecht5_tts' : ($audio['provider'] === 'mms_tts' ? 'facebook/mms-tts' : 'google-text-to-speech'),
+            ':audio_path' => $audio['file_path'],
+            ':mime_type' => $audio['mime_type'],
+            ':file_size' => $audio['file_size'],
+            ':processing_ms' => $audio['timings']['totalMs'] ?? null,
+        ]);
+    } catch (Throwable) {
+    }
 }
 
 function synthesize_with_script(string $script, string $text, string $target, string $language, string $tempPrefix): ?array
@@ -682,9 +729,10 @@ function clean_narration_text(string $text): string
     return trim($text);
 }
 
-function generate_gtts_audio(array $user, string $text, string $language = 'en', bool $failHard = true): ?array
+function generate_gtts_audio(array $user, string $text, string $language = 'en', bool $failHard = true, ?int $bookId = null, ?int $pageNumber = null): ?array
 {
-    [$relativeDirectory, $targetDirectory] = prepare_tts_storage($user);
+    $started = microtime(true);
+    [$relativeDirectory, $targetDirectory] = prepare_tts_storage($user, true);
     $script = realpath(__DIR__ . '/../../scripts/gtts_synthesize.py');
     if (!$script) {
         if (!$failHard) {
@@ -693,8 +741,9 @@ function generate_gtts_audio(array $user, string $text, string $language = 'en',
         Response::error('The gTTS narration service is not installed', 503);
     }
 
-    $filename = hash('sha256', 'gtts|' . $language . '|' . $text) . '.mp3';
+    $filename = narration_cache_key('gtts', $language, 'clear', 1.0, $text, $bookId, $pageNumber) . '.mp3';
     $target = $targetDirectory . DIRECTORY_SEPARATOR . $filename;
+    $cached = is_file($target) && filesize($target) > 0;
     if (!is_file($target) || filesize($target) === 0) {
         $result = synthesize_with_script($script, $text, $target, $language, 'mdl-gtts-');
         if (!$result) {
@@ -712,6 +761,8 @@ function generate_gtts_audio(array $user, string $text, string $language = 'en',
         'mime_type' => 'audio/mpeg',
         'file_size' => filesize($target),
         'provider' => 'gtts',
+        'cached' => $cached,
+        'timings' => ['totalMs' => (int)round((microtime(true) - $started) * 1000)],
     ];
 }
 
@@ -760,11 +811,13 @@ function generate_mms_service_audio(string $text, string $target, string $langua
     return $result;
 }
 
-function generate_mms_audio(array $user, string $text, string $language = 'en'): ?array
+function generate_mms_audio(array $user, string $text, string $language = 'en', ?int $bookId = null, ?int $pageNumber = null): ?array
 {
-    [$relativeDirectory, $targetDirectory] = prepare_tts_storage($user);
-    $filename = hash('sha256', 'mms|' . $language . '|' . $text) . '.wav';
+    $started = microtime(true);
+    [$relativeDirectory, $targetDirectory] = prepare_tts_storage($user, true);
+    $filename = narration_cache_key('mms', $language, 'mms', 1.0, $text, $bookId, $pageNumber) . '.wav';
     $target = $targetDirectory . DIRECTORY_SEPARATOR . $filename;
+    $cached = is_file($target) && filesize($target) > 0;
     if (!is_file($target) || filesize($target) === 0) {
         $serviceResult = generate_mms_service_audio($text, $target, $language);
         if (!$serviceResult) {
@@ -779,18 +832,22 @@ function generate_mms_audio(array $user, string $text, string $language = 'en'):
         'mime_type' => 'audio/wav',
         'file_size' => filesize($target),
         'provider' => 'mms_tts',
+        'cached' => $cached,
+        'timings' => ['totalMs' => (int)round((microtime(true) - $started) * 1000)],
     ];
 }
-function generate_speecht5_audio(array $user, string $text, string $language = 'en'): ?array
+function generate_speecht5_audio(array $user, string $text, string $language = 'en', ?int $bookId = null, ?int $pageNumber = null): ?array
 {
-    [$relativeDirectory, $targetDirectory] = prepare_tts_storage($user);
+    $started = microtime(true);
+    [$relativeDirectory, $targetDirectory] = prepare_tts_storage($user, true);
     $script = realpath(__DIR__ . '/../../scripts/speecht5_synthesize.py');
     if (!$script) {
         return null;
     }
 
-    $filename = hash('sha256', 'speecht5|' . $language . '|' . $text) . '.wav';
+    $filename = narration_cache_key('speecht5', $language, 'speecht5', 1.0, $text, $bookId, $pageNumber) . '.wav';
     $target = $targetDirectory . DIRECTORY_SEPARATOR . $filename;
+    $cached = is_file($target) && filesize($target) > 0;
     if (!is_file($target) || filesize($target) === 0) {
         $serviceResult = generate_speecht5_service_audio($text, $target, $language);
         if (!$serviceResult) {
@@ -811,11 +868,14 @@ function generate_speecht5_audio(array $user, string $text, string $language = '
         'mime_type' => 'audio/wav',
         'file_size' => filesize($target),
         'provider' => 'speecht5',
+        'cached' => $cached,
+        'timings' => ['totalMs' => (int)round((microtime(true) - $started) * 1000)],
     ];
 }
 
-function generate_narration_audio(array $user, string $text, string $language = 'en', string $preference = 'speecht5'): array
+function generate_narration_audio(array $user, string $text, string $language = 'en', string $preference = 'speecht5', ?int $bookId = null, ?int $pageNumber = null): array
 {
+    $started = microtime(true);
     $text = clean_narration_text($text);
     if ($text === '') {
         Response::error('Text is required for audio narration', 422);
@@ -831,39 +891,47 @@ function generate_narration_audio(array $user, string $text, string $language = 
 
     $preference = strtolower(trim($preference));
     if ($preference === 'mms' || in_array($language, ['fr', 'rw', 'sw'], true)) {
-        $mms = generate_mms_audio($user, $text, $language);
+        $mms = generate_mms_audio($user, $text, $language, $bookId, $pageNumber);
         if ($mms) {
+            $mms['timings']['totalMs'] = (int)round((microtime(true) - $started) * 1000);
             return $mms;
         }
     }
 
     if (in_array($preference, ['clear', 'gtts', 'google'], true)) {
-        $gtts = generate_gtts_audio($user, $text, $language, false);
+        $gtts = generate_gtts_audio($user, $text, $language, false, $bookId, $pageNumber);
         if ($gtts) {
+            $gtts['timings']['totalMs'] = (int)round((microtime(true) - $started) * 1000);
             return $gtts;
         }
-        $mms = generate_mms_audio($user, $text, $language);
+        $mms = generate_mms_audio($user, $text, $language, $bookId, $pageNumber);
         if ($mms) {
+            $mms['timings']['totalMs'] = (int)round((microtime(true) - $started) * 1000);
             return $mms;
         }
-        $speechT5 = $language === 'en' ? generate_speecht5_audio($user, $text, $language) : null;
+        $speechT5 = $language === 'en' ? generate_speecht5_audio($user, $text, $language, $bookId, $pageNumber) : null;
         if ($speechT5) {
+            $speechT5['timings']['totalMs'] = (int)round((microtime(true) - $started) * 1000);
             return $speechT5;
         }
         Response::error('No text-to-speech provider could generate this narration.', 503);
     }
 
-    $speechT5 = $language === 'en' ? generate_speecht5_audio($user, $text, $language) : null;
+    $speechT5 = $language === 'en' ? generate_speecht5_audio($user, $text, $language, $bookId, $pageNumber) : null;
     if ($speechT5) {
+        $speechT5['timings']['totalMs'] = (int)round((microtime(true) - $started) * 1000);
         return $speechT5;
     }
 
-    $mms = generate_mms_audio($user, $text, $language);
+    $mms = generate_mms_audio($user, $text, $language, $bookId, $pageNumber);
     if ($mms) {
+        $mms['timings']['totalMs'] = (int)round((microtime(true) - $started) * 1000);
         return $mms;
     }
 
-    return generate_gtts_audio($user, $text, $language);
+    $gtts = generate_gtts_audio($user, $text, $language, true, $bookId, $pageNumber);
+    $gtts['timings']['totalMs'] = (int)round((microtime(true) - $started) * 1000);
+    return $gtts;
 }
 function process_uploaded_library_file(array $file, string $relativeDirectory): array
 {
@@ -3709,37 +3777,67 @@ function route(string $method, string $path): void
     if (preg_match('#^/tts/audio/([a-f0-9]{64}\.(?:mp3|wav))$#', $path, $m) && $method === 'GET') {
         $user = current_user();
         $mimeType = str_ends_with($m[1], '.wav') ? 'audio/wav' : 'audio/mpeg';
+        $uploadRoot = realpath(__DIR__ . '/../uploads') ?: (__DIR__ . '/../uploads');
+        $userRelative = 'tts/' . (int)$user['id'] . '/' . $m[1];
+        $sharedRelative = 'tts/shared/' . $m[1];
+        $selectedRelative = is_file($uploadRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $userRelative))
+            ? $userRelative
+            : $sharedRelative;
         $file = [
-            'file_path' => 'uploads/tts/' . (int)$user['id'] . '/' . $m[1],
+            'file_path' => 'uploads/' . $selectedRelative,
             'original_name' => 'mdl-library-narration.' . pathinfo($m[1], PATHINFO_EXTENSION),
             'mime_type' => $mimeType,
         ];
         serve_stored_file(resolve_stored_upload($file), true);
     }
 
-    if ($method === 'POST' && in_array($path, ['/tts', '/tts/generate', '/tts/read-book', '/tts/read-summary'], true)) {
+    if ($method === 'POST' && in_array($path, ['/tts', '/tts/segments', '/tts/generate', '/tts/read-book', '/tts/read-summary'], true)) {
         enforce_rate_limit('tts', 60, 300);
         $user = current_user();
         $data = body();
         $text = trim((string)($data['text'] ?? ''));
+        $bookId = optional_int($data['book_id'] ?? null, 'book_id');
+        $pageNumber = optional_int($data['page_number'] ?? null, 'page_number');
         $audio = generate_narration_audio(
             $user,
             $text,
             (string)($data['language'] ?? 'en'),
-            (string)($data['provider'] ?? $data['voice'] ?? 'speecht5')
+            (string)($data['provider'] ?? $data['voice'] ?? 'speecht5'),
+            $bookId,
+            $pageNumber
         );
+        record_narration_cache($user, $bookId, $pageNumber, (string)($data['language'] ?? 'en'), (string)($data['provider'] ?? $data['voice'] ?? 'speecht5'), 1.0, clean_narration_text($text), $audio);
         pdo()->prepare('INSERT INTO tts_logs (user_id, book_id, text_length, provider, status) VALUES (:user_id, :book_id, :text_length, :provider, "success")')
             ->execute([
                 ':user_id' => $user['id'],
-                ':book_id' => optional_int($data['book_id'] ?? null, 'book_id'),
+                ':book_id' => $bookId,
                 ':text_length' => mb_strlen($text),
                 ':provider' => $audio['provider'],
             ]);
+        try {
+            pdo()->prepare(
+                'INSERT INTO ai_processing_jobs
+                 (user_id, book_id, page_number, job_type, status, source_language, provider, cache_key, output_path, processing_ms, started_at, completed_at)
+                 VALUES (:user_id, :book_id, :page_number, "tts", "completed", :source_language, :provider, :cache_key, :output_path, :processing_ms, NOW(), NOW())'
+            )->execute([
+                ':user_id' => $user['id'],
+                ':book_id' => $bookId,
+                ':page_number' => $pageNumber,
+                ':source_language' => (string)($data['language'] ?? 'en'),
+                ':provider' => $audio['provider'],
+                ':cache_key' => pathinfo($audio['filename'], PATHINFO_FILENAME),
+                ':output_path' => $audio['file_path'],
+                ':processing_ms' => $audio['timings']['totalMs'] ?? null,
+            ]);
+        } catch (Throwable) {
+        }
         Response::ok([
             'audio_url' => '/tts/audio/' . $audio['filename'],
             'text_length' => mb_strlen($text),
             'provider' => $audio['provider'],
             'file_size' => $audio['file_size'],
+            'cached' => (bool)($audio['cached'] ?? false),
+            'timings' => $audio['timings'] ?? null,
         ], $audio['provider'] === 'speecht5' ? 'SpeechT5 narration generated' : ($audio['provider'] === 'mms_tts' ? 'MMS multilingual narration generated' : 'gTTS narration generated'));
     }
 
@@ -3959,7 +4057,7 @@ function route(string $method, string $path): void
         Response::ok(class_exists('TranslationService') ? TranslationService::health() : ['status' => 'unavailable']);
     }
 
-    if ($method === 'POST' && $path === '/translation/translate') {
+    if ($method === 'POST' && in_array($path, ['/translation/translate', '/translation/page'], true)) {
         enforce_rate_limit('translation', 80, 300);
         $user = current_user();
         $data = body();
@@ -3968,7 +4066,8 @@ function route(string $method, string $path): void
             (string)$data['text'],
             (string)$data['target_language'],
             (string)($data['source_language'] ?? 'en'),
-            $user
+            $user,
+            (string)($data['quality_mode'] ?? 'balanced')
         );
         ActivityLogService::log($user, 'translate_text', 'success', 'translation_request', $result['id'] ?? null, [
             'source_language' => $result['source_language'],

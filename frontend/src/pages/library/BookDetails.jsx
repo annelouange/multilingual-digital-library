@@ -19,7 +19,7 @@ export default function BookDetails() {
   const { user } = useAuth();
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [translationLanguage, setTranslationLanguage] = useState('rw');
+  const [translationLanguage, setTranslationLanguage] = useState('fr');
   const [translationResult, setTranslationResult] = useState(null);
   const [translationBusy, setTranslationBusy] = useState(false);
   const bookState = useAsync(() => booksApi.getBook(id), [id]);

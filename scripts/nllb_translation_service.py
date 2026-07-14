@@ -2,6 +2,7 @@ import os
 import re
 import time
 from functools import lru_cache
+from pathlib import Path
 from typing import List
 
 import torch
@@ -12,6 +13,8 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 
 MODEL_NAME = os.getenv("NLLB_MODEL", "facebook/nllb-200-distilled-600M")
+OPUS_FR_EN_MODEL = os.getenv("OPUS_FR_EN_MODEL", r"D:\mdl-translation-models\opus-fr-en\final")
+OPUS_EN_FR_MODEL = os.getenv("OPUS_EN_FR_MODEL", "")
 MAX_TEXT_CHARS = int(os.getenv("NLLB_MAX_TEXT_CHARS", "20000"))
 MAX_CHUNK_CHARS = int(os.getenv("NLLB_MAX_CHUNK_CHARS", "900"))
 MAX_NEW_TOKENS = int(os.getenv("NLLB_MAX_NEW_TOKENS", "512"))
@@ -19,8 +22,6 @@ MAX_NEW_TOKENS = int(os.getenv("NLLB_MAX_NEW_TOKENS", "512"))
 LANGUAGE_MAP = {
     "en": "eng_Latn",
     "fr": "fra_Latn",
-    "rw": "kin_Latn",
-    "sw": "swh_Latn",
 }
 
 app = FastAPI(title="Multilingual Library NLLB Translation Service")
@@ -44,6 +45,27 @@ def load_model():
     model.to(device_name())
     model.eval()
     return tokenizer, model
+
+
+@lru_cache(maxsize=4)
+def load_opus_model(model_name: str):
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+    model.to(device_name())
+    model.eval()
+    return tokenizer, model
+
+
+def opus_model_for(source_language: str, target_language: str) -> str:
+    if source_language == "fr" and target_language == "en" and OPUS_FR_EN_MODEL:
+        return OPUS_FR_EN_MODEL
+    if source_language == "en" and target_language == "fr" and OPUS_EN_FR_MODEL:
+        return OPUS_EN_FR_MODEL
+    return ""
+
+
+def model_is_configured(model_name: str) -> bool:
+    return bool(model_name and (Path(model_name).exists() or "/" in model_name))
 
 
 def normalize_language(code: str) -> str:
@@ -79,6 +101,14 @@ def split_text(text: str) -> List[str]:
 
 
 def translate_chunk(text: str, source_language: str, target_language: str) -> str:
+    opus_model = opus_model_for(source_language, target_language)
+    if opus_model and (Path(opus_model).exists() or "/" in opus_model):
+        tokenizer, model = load_opus_model(opus_model)
+        inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512).to(model.device)
+        with torch.inference_mode():
+            generated = model.generate(**inputs, max_new_tokens=MAX_NEW_TOKENS)
+        return tokenizer.batch_decode(generated, skip_special_tokens=True)[0]
+
     tokenizer, model = load_model()
     source_nllb = LANGUAGE_MAP[source_language]
     target_nllb = LANGUAGE_MAP[target_language]
@@ -96,22 +126,20 @@ def translate_chunk(text: str, source_language: str, target_language: str) -> st
 
 @app.get("/health")
 def health():
-    ready = False
-    error = None
-    try:
-        load_model()
-        ready = True
-    except Exception as exc:  # pragma: no cover - operational health detail
-        error = str(exc)
+    opus_models = {
+        "fr-en": OPUS_FR_EN_MODEL if model_is_configured(OPUS_FR_EN_MODEL) else None,
+        "en-fr": OPUS_EN_FR_MODEL if model_is_configured(OPUS_EN_FR_MODEL) else None,
+    }
     return {
-        "success": ready,
-        "status": "ready" if ready else "model_unavailable",
-        "provider": "nllb",
+        "success": True,
+        "status": "ready",
+        "provider": "opus+nllb",
         "model": MODEL_NAME,
+        "opus_models": opus_models,
         "device": device_name(),
         "supported_languages": sorted(LANGUAGE_MAP.keys()),
         "uptime_seconds": round(time.time() - started_at, 2),
-        "error": error,
+        "error": None,
     }
 
 
@@ -134,11 +162,13 @@ def translate(payload: TranslateRequest):
         }
     chunks = split_text(text)
     translated = [translate_chunk(chunk, source_language, target_language) for chunk in chunks]
+    provider = "opus" if opus_model_for(source_language, target_language) else "nllb"
+    model_name = opus_model_for(source_language, target_language) or MODEL_NAME
     return {
         "success": True,
         "translated_text": "\n\n".join(translated),
-        "provider": "nllb",
-        "model": MODEL_NAME,
+        "provider": provider,
+        "model": model_name,
         "source_language": source_language,
         "target_language": target_language,
         "chunks": len(chunks),

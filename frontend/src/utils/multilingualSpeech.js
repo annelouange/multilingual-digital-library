@@ -1,8 +1,6 @@
 export const ACCESS_LANGUAGES = [
   { code: 'en', label: 'English', speechCode: 'en-US' },
-  { code: 'rw', label: 'Kinyarwanda', speechCode: 'rw-RW' },
   { code: 'fr', label: 'Francais', speechCode: 'fr-FR' },
-  { code: 'sw', label: 'Kiswahili', speechCode: 'sw-KE' },
 ];
 
 const PHRASES = {
@@ -22,22 +20,6 @@ const PHRASES = {
     dashboard: 'Opening dashboard.',
     unknown: 'I did not understand that command. Opening search with your words.',
   },
-  rw: {
-    listening: 'Ndumva. Vuga aho ushaka kujya cyangwa icyo ushaka gushaka.',
-    noSpeech: 'Nta jwi ryamenyekanye. Ongera ugerageze.',
-    unsupportedRecognition: 'Iyi browser ntabwo yemera kumenya ijwi. Ushobora gukoresha urupapuro rwo gushaka ukoresheje ijwi.',
-    unsupportedSpeech: 'Iyi browser ntabwo ishobora gusoma mu ijwi.',
-    guideReady: 'Umuyobozi w ijwi ariteguye. Ushobora kuvuga gushaka ibitabo, amatangazo, ibyo nkunda, utumenyetso, ibyo natije, ibyifuzo, cyangwa profile.',
-    search: 'Ngiye gufungura gushaka ibitabo.',
-    notifications: 'Ngiye gufungura amatangazo.',
-    favorites: 'Ngiye gufungura ibyo ukunda.',
-    bookmarks: 'Ngiye gufungura utumenyetso.',
-    borrowed: 'Ngiye gufungura ibitabo watije.',
-    recommendations: 'Ngiye gufungura ibyifuzo.',
-    profile: 'Ngiye gufungura profile.',
-    dashboard: 'Ngiye gufungura dashboard.',
-    unknown: 'Sinabyumvise neza. Ngiye gushakisha ayo magambo.',
-  },
   fr: {
     listening: 'J ecoute. Dites une page, un sujet de recherche ou une commande.',
     noSpeech: 'Aucune parole reconnue. Veuillez reessayer.',
@@ -54,33 +36,17 @@ const PHRASES = {
     dashboard: 'Ouverture du tableau de bord.',
     unknown: 'Je n ai pas compris cette commande. Je lance une recherche avec vos mots.',
   },
-  sw: {
-    listening: 'Nasikiliza. Sema ukurasa, mada ya kutafuta, au amri.',
-    noSpeech: 'Hakuna sauti iliyotambuliwa. Jaribu tena.',
-    unsupportedRecognition: 'Utambuzi wa sauti haupatikani kwenye kivinjari hiki. Unaweza kutumia ukurasa wa kutafuta kwa sauti.',
-    unsupportedSpeech: 'Usomaji wa sauti haupatikani kwenye kivinjari hiki.',
-    guideReady: 'Mwongozo wa sauti uko tayari. Unaweza kusema tafuta vitabu, taarifa, vipendwa, alama, vitabu nilivyoazima, mapendekezo, dashibodi au wasifu.',
-    search: 'Nafungua utafutaji.',
-    notifications: 'Nafungua taarifa.',
-    favorites: 'Nafungua vipendwa.',
-    bookmarks: 'Nafungua alama.',
-    borrowed: 'Nafungua vitabu ulivyoazima.',
-    recommendations: 'Nafungua mapendekezo.',
-    profile: 'Nafungua wasifu.',
-    dashboard: 'Nafungua dashibodi.',
-    unknown: 'Sikuelewa amri hiyo. Natafuta kwa maneno yako.',
-  },
 };
 
 const COMMANDS = [
-  { key: 'notifications', path: '/notifications', terms: ['notification', 'notifications', 'amatangazo', 'imenyesha', 'taarifa'] },
-  { key: 'favorites', path: '/student/favorites', terms: ['favorite', 'favorites', 'favourite', 'favoris', 'nkunda', 'vipendwa'] },
-  { key: 'bookmarks', path: '/student/bookmarks', terms: ['bookmark', 'bookmarks', 'signet', 'marque', 'udumenyetso', 'alama'] },
-  { key: 'borrowed', path: '/student/borrowed', terms: ['borrowed', 'borrow', 'emprunt', 'natije', 'azima', 'nimetazima'] },
-  { key: 'recommendations', path: '/recommendations', terms: ['recommendation', 'recommendations', 'recommandation', 'ibyifuzo', 'mapendekezo'] },
-  { key: 'profile', path: '/profile', terms: ['profile', 'profil', 'umwirondoro', 'wasifu'] },
-  { key: 'dashboard', path: null, terms: ['dashboard', 'home', 'accueil', 'ahabanza', 'mwanzo'] },
-  { key: 'search', path: '/search', terms: ['search', 'book', 'books', 'catalog', 'chercher', 'recherche', 'igitabo', 'ibitabo', 'shaka', 'tafuta', 'kitabu', 'vitabu'] },
+  { key: 'notifications', path: '/notifications', terms: ['notification', 'notifications'] },
+  { key: 'favorites', path: '/student/favorites', terms: ['favorite', 'favorites', 'favourite', 'favoris'] },
+  { key: 'bookmarks', path: '/student/bookmarks', terms: ['bookmark', 'bookmarks', 'signet', 'marque'] },
+  { key: 'borrowed', path: '/student/borrowed', terms: ['borrowed', 'borrow', 'emprunt'] },
+  { key: 'recommendations', path: '/recommendations', terms: ['recommendation', 'recommendations', 'recommandation'] },
+  { key: 'profile', path: '/profile', terms: ['profile', 'profil'] },
+  { key: 'dashboard', path: null, terms: ['dashboard', 'home', 'accueil'] },
+  { key: 'search', path: '/search', terms: ['search', 'book', 'books', 'catalog', 'chercher', 'recherche', 'livre', 'livres'] },
 ];
 
 export function getLanguage(code) {
@@ -107,6 +73,62 @@ export function speakText(text, languageCode = 'en', options = {}) {
   utterance.voice = exactVoice || familyVoice || null;
   window.speechSynthesis.speak(utterance);
   return utterance;
+}
+
+export function speakTextInChunks(text, languageCode = 'en', options = {}) {
+  if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+    throw new Error(phrase(languageCode, 'unsupportedSpeech'));
+  }
+  window.speechSynthesis.cancel();
+  const clean = String(text || '').replace(/\s+/g, ' ').trim();
+  const chunks = [];
+  let remaining = clean;
+  while (remaining) {
+    const slice = remaining.slice(0, options.chunkSize || 700);
+    const boundary = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('? '), slice.lastIndexOf('! '), slice.lastIndexOf('; '), slice.lastIndexOf(', '));
+    const chunk = (boundary > 220 ? slice.slice(0, boundary + 1) : slice).trim();
+    chunks.push(chunk);
+    remaining = remaining.slice(chunk.length).trim();
+  }
+
+  const lang = getLanguage(languageCode);
+  const voices = window.speechSynthesis.getVoices?.() || [];
+  const exactVoice = voices.find((voice) => voice.lang?.toLowerCase() === lang.speechCode.toLowerCase());
+  const familyVoice = voices.find((voice) => voice.lang?.toLowerCase().startsWith(languageCode.toLowerCase()));
+  let index = 0;
+  const controller = {
+    cancelled: false,
+    pause: () => window.speechSynthesis.pause(),
+    resume: () => window.speechSynthesis.resume(),
+    cancel: () => {
+      controller.cancelled = true;
+      window.speechSynthesis.cancel();
+    },
+    onend: null,
+    onerror: null,
+  };
+
+  const speakNext = () => {
+    if (controller.cancelled) return;
+    if (index >= chunks.length) {
+      controller.onend?.();
+      return;
+    }
+    const utterance = new SpeechSynthesisUtterance(chunks[index]);
+    utterance.lang = lang.speechCode;
+    utterance.rate = options.rate || 0.92;
+    utterance.pitch = options.pitch || 1;
+    utterance.voice = exactVoice || familyVoice || null;
+    utterance.onend = () => {
+      index += 1;
+      speakNext();
+    };
+    utterance.onerror = (event) => controller.onerror?.(event);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  speakNext();
+  return controller;
 }
 
 export function startSpeechRecognition(languageCode, handlers = {}) {

@@ -82,6 +82,6 @@ return [
     'model_api_fallback_1_key' => env_value('MODEL_API_FALLBACK_1_KEY', ''),
     'model_api_fallback_2_url' => env_value('MODEL_API_FALLBACK_2_URL', ''),
     'model_api_fallback_2_key' => env_value('MODEL_API_FALLBACK_2_KEY', ''),
-    'nllb_translation_health_url' => env_value('NLLB_TRANSLATION_HEALTH_URL', 'http://127.0.0.1:5008/health'),
-    'nllb_translation_url' => env_value('NLLB_TRANSLATION_URL', 'http://127.0.0.1:5008/translate'),
+    'nllb_translation_health_url' => env_value('NLLB_TRANSLATION_HEALTH_URL', env_value('AI_TRANSLATION_HEALTH_URL', 'http://127.0.0.1:8001/health')),
+    'nllb_translation_url' => env_value('NLLB_TRANSLATION_URL', env_value('AI_TRANSLATION_URL', 'http://127.0.0.1:8001/translate')),
 ];

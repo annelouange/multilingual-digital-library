@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+torch
+transformers
+sentencepiece
+sacremoses
+python-multipart
+langdetect

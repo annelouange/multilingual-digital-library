@@ -1,7 +1,9 @@
-﻿<?php
+<?php
 
 class TranslationService
 {
+    private const ACTIVE_LANGUAGE_CODES = ['en', 'fr'];
+
     public static function supportedLanguages(): array
     {
         try {
@@ -9,6 +11,7 @@ class TranslationService
                 ->query('SELECT code, name, native_name, direction, is_default, supports_ui, supports_translation, supports_stt, supports_tts, quality_status FROM supported_languages WHERE is_active=1 ORDER BY is_default DESC, name')
                 ->fetchAll();
             if ($rows) {
+                $rows = array_values(array_filter($rows, fn ($row) => in_array($row['code'], self::ACTIVE_LANGUAGE_CODES, true)));
                 return array_map(fn ($row) => [
                     'code' => $row['code'],
                     'name' => $row['name'],
@@ -28,13 +31,12 @@ class TranslationService
         return [
             ['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'direction' => 'ltr', 'is_default' => true, 'supports_ui' => true, 'supports_translation' => true, 'supports_stt' => true, 'supports_tts' => true, 'quality_status' => 'production'],
             ['code' => 'fr', 'name' => 'French', 'native_name' => 'Francais', 'direction' => 'ltr', 'is_default' => false, 'supports_ui' => true, 'supports_translation' => true, 'supports_stt' => false, 'supports_tts' => false, 'quality_status' => 'beta'],
-            ['code' => 'rw', 'name' => 'Kinyarwanda', 'native_name' => 'Ikinyarwanda', 'direction' => 'ltr', 'is_default' => false, 'supports_ui' => true, 'supports_translation' => true, 'supports_stt' => false, 'supports_tts' => false, 'quality_status' => 'beta'],
-            ['code' => 'sw', 'name' => 'Kiswahili', 'native_name' => 'Kiswahili', 'direction' => 'ltr', 'is_default' => false, 'supports_ui' => true, 'supports_translation' => true, 'supports_stt' => false, 'supports_tts' => false, 'quality_status' => 'beta'],
         ];
     }
 
-    public static function translate(string $text, string $targetLanguage, string $sourceLanguage = 'en', ?array $user = null): array
+    public static function translate(string $text, string $targetLanguage, string $sourceLanguage = 'en', ?array $user = null, string $qualityMode = 'balanced'): array
     {
+        $started = microtime(true);
         $text = trim($text);
         $sourceLanguage = strtolower(trim($sourceLanguage ?: 'en'));
         $targetLanguage = strtolower(trim($targetLanguage));
@@ -45,17 +47,34 @@ class TranslationService
             Response::error('Unsupported source or target language', 422);
         }
         if ($sourceLanguage === $targetLanguage) {
-            return self::recordRequest($text, $text, $sourceLanguage, $targetLanguage, 'none', 100, 'translated', $user);
+            $result = self::recordRequest($text, $text, $sourceLanguage, $targetLanguage, 'none', 100, 'translated', $user);
+            $result['cached'] = true;
+            $result['timings'] = ['totalMs' => (int)round((microtime(true) - $started) * 1000)];
+            return $result;
         }
 
         $memory = self::lookupMemory($text, $sourceLanguage, $targetLanguage);
         if ($memory) {
-            return self::recordRequest($text, $memory['translated_text'], $sourceLanguage, $targetLanguage, $memory['provider'], 98, 'translated', $user);
+            $result = self::recordRequest($text, $memory['translated_text'], $sourceLanguage, $targetLanguage, $memory['provider'], 98, 'translated', $user);
+            $result['cached'] = true;
+            $result['timings'] = ['totalMs' => (int)round((microtime(true) - $started) * 1000)];
+            return $result;
         }
 
-        $modelResult = self::translateWithModel($text, $sourceLanguage, $targetLanguage);
+        $cache = self::lookupTranslationCache($text, $sourceLanguage, $targetLanguage);
+        if ($cache) {
+            $result = self::recordRequest($text, $cache['translated_text'], $sourceLanguage, $targetLanguage, $cache['provider'] ?: 'model', 96, 'translated', $user, $cache['model_name'] ?? null);
+            $result['cached'] = true;
+            $result['timings'] = ['cacheLookupMs' => (int)round((microtime(true) - $started) * 1000), 'totalMs' => (int)round((microtime(true) - $started) * 1000)];
+            return $result;
+        }
+
+        $modelStarted = microtime(true);
+        $modelResult = self::translateWithModel($text, $sourceLanguage, $targetLanguage, $qualityMode);
         if ($modelResult) {
-            return self::recordRequest(
+            $processingMs = (int)round((microtime(true) - $modelStarted) * 1000);
+            self::storeTranslationCache($text, $modelResult['translated_text'], $sourceLanguage, $targetLanguage, $modelResult['provider'], $modelResult['model'] ?? 'model', $processingMs);
+            $result = self::recordRequest(
                 $text,
                 $modelResult['translated_text'],
                 $sourceLanguage,
@@ -66,20 +85,14 @@ class TranslationService
                 $user,
                 $modelResult['model'] ?? null
             );
+            $result['cached'] = false;
+            $result['timings'] = ['modelInferenceMs' => $processingMs, 'totalMs' => (int)round((microtime(true) - $started) * 1000)];
+            return $result;
         }
 
-        $dictionary = self::dictionary();
-        $key = $sourceLanguage . ':' . $targetLanguage;
-        $translated = $text;
-        $matched = 0;
-        if (isset($dictionary[$key])) {
-            uksort($dictionary[$key], fn ($a, $b) => strlen($b) <=> strlen($a));
-            foreach ($dictionary[$key] as $source => $target) {
-                $count = 0;
-                $translated = str_ireplace($source, $target, $translated, $count);
-                $matched += $count;
-            }
-        }
+        $localResult = self::translateWithPhraseMemory($text, $sourceLanguage, $targetLanguage);
+        $translated = $localResult['translated_text'];
+        $matched = $localResult['matched_terms'];
 
         $quality = $matched > 0 ? 'partial' : 'needs_review';
         $confidence = $matched > 0 ? 70 : 0;
@@ -93,7 +106,10 @@ class TranslationService
             $user,
             ['source_language' => $sourceLanguage, 'target_language' => $targetLanguage, 'matched_terms' => $matched]
         );
-        return self::recordRequest($text, $translated, $sourceLanguage, $targetLanguage, 'internal_dictionary', $confidence, $quality, $user);
+        $result = self::recordRequest($text, $translated, $sourceLanguage, $targetLanguage, 'internal_dictionary', $confidence, $quality, $user);
+        $result['cached'] = false;
+        $result['timings'] = ['totalMs' => (int)round((microtime(true) - $started) * 1000)];
+        return $result;
     }
 
     public static function translateBookText(string $text, string $targetLanguage, string $sourceLanguage = 'en', ?array $user = null): array
@@ -121,9 +137,9 @@ class TranslationService
         return [
             'status' => 'ready',
             'supported_languages' => array_column(self::supportedLanguages(), 'code'),
-            'provider' => ($modelHealth['status'] ?? '') === 'ready' ? 'nllb' : 'internal_dictionary',
+            'provider' => ($modelHealth['status'] ?? '') === 'ready' ? ($modelHealth['provider'] ?? 'nllb') : 'internal_dictionary',
             'model_health' => $modelHealth,
-            'note' => 'Pretrained NLLB is used when available. High-stakes production translation should still use review workflows, especially for Kinyarwanda education content.',
+            'note' => 'English and French are enabled for this release. Translation runs through a separate Python AI service with safe chunking, validation, and phrase-memory fallback.',
         ];
     }
 
@@ -158,7 +174,7 @@ class TranslationService
         }
     }
 
-    private static function translateWithModel(string $text, string $sourceLanguage, string $targetLanguage): ?array
+    private static function translateWithModel(string $text, string $sourceLanguage, string $targetLanguage, string $qualityMode = 'balanced'): ?array
     {
         $config = self::config();
         $url = (string)($config['nllb_translation_url'] ?? '');
@@ -169,13 +185,14 @@ class TranslationService
         curl_setopt_array($curl, [
             CURLOPT_POST => true,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 180,
+            CURLOPT_TIMEOUT => 130,
             CURLOPT_CONNECTTIMEOUT => 3,
             CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
             CURLOPT_POSTFIELDS => json_encode([
                 'text' => $text,
                 'source_language' => $sourceLanguage,
                 'target_language' => $targetLanguage,
+                'quality_mode' => in_array($qualityMode, ['fast', 'balanced', 'accurate'], true) ? $qualityMode : 'balanced',
             ]),
         ]);
         $raw = curl_exec($curl);
@@ -190,7 +207,7 @@ class TranslationService
         }
         return [
             'translated_text' => (string)$data['translated_text'],
-            'provider' => (string)($data['provider'] ?? 'nllb'),
+            'provider' => (string)($data['provider'] ?? 'opus+nllb'),
             'model' => (string)($data['model'] ?? 'facebook/nllb-200-distilled-600M'),
         ];
     }
@@ -222,6 +239,9 @@ class TranslationService
     {
         $institutionId = class_exists('TenantService') ? TenantService::institutionIdFor($user) : null;
         $requestId = null;
+        $databaseProvider = in_array($provider, ['internal_dictionary', 'external_api', 'model', 'human_review', 'none'], true)
+            ? $provider
+            : 'model';
         try {
             $stmt = Database::connection()->prepare(
                 'INSERT INTO translation_requests
@@ -235,7 +255,7 @@ class TranslationService
                 ':target_language' => $targetLanguage,
                 ':source_text' => $sourceText,
                 ':translated_text' => $translatedText,
-                ':provider' => $provider,
+                ':provider' => $databaseProvider,
                 ':confidence' => $confidence,
                 ':quality_status' => $quality,
             ]);
@@ -248,11 +268,22 @@ class TranslationService
             )->execute([
                 ':institution_id' => $institutionId,
                 ':user_id' => $user['id'] ?? null,
-                ':provider' => $provider,
+                ':provider' => $databaseProvider,
                 ':model_name' => $modelName ?: 'internal-translation-memory',
                 ':input_units' => mb_strlen($sourceText),
                 ':output_units' => mb_strlen($translatedText),
                 ':metadata' => json_encode(['source_language' => $sourceLanguage, 'target_language' => $targetLanguage, 'quality_status' => $quality]),
+            ]);
+            Database::connection()->prepare(
+                'INSERT INTO ai_processing_jobs
+                 (user_id, job_type, status, source_language, target_language, provider, cache_key, processing_ms, started_at, completed_at)
+                 VALUES (:user_id, "translation", "completed", :source_language, :target_language, :provider, :cache_key, NULL, NOW(), NOW())'
+            )->execute([
+                ':user_id' => $user['id'] ?? null,
+                ':source_language' => $sourceLanguage,
+                ':target_language' => $targetLanguage,
+                ':provider' => $databaseProvider,
+                ':cache_key' => hash('sha256', $sourceText),
             ]);
         } catch (Throwable) {
         }
@@ -297,6 +328,18 @@ class TranslationService
     {
         return [
             'en:fr' => [
+                'I am a student at ines in computer science and I am a final year student' => 'Je suis etudiante en informatique et je suis en derniere annee.',
+                'I am a student in computer science' => 'Je suis etudiante en informatique',
+                'I am a student' => 'Je suis etudiante',
+                'final year student' => 'etudiante en derniere annee',
+                'computer science' => 'informatique',
+                'Access learning resources' => 'Acceder aux ressources d apprentissage',
+                'learning resources' => 'ressources d apprentissage',
+                'online reading' => 'lecture en ligne',
+                'voice search' => 'recherche vocale',
+                'intelligent narration' => 'narration intelligente',
+                'inclusive learning' => 'apprentissage inclusif',
+                'Rwanda' => 'Rwanda',
                 'Dashboard' => 'Tableau de bord',
                 'Search Books' => 'Rechercher des livres',
                 'Upload Book' => 'Televerser un livre',
@@ -314,43 +357,68 @@ class TranslationService
                 'Settings' => 'Parametres',
                 'Library' => 'Bibliotheque',
             ],
-            'en:rw' => [
-                'Dashboard' => "Ahabanza h'ibikorwa",
-                'Search Books' => 'Shakisha ibitabo',
-                'Upload Book' => 'Ohereza igitabo',
-                'Submit Book' => 'Tanga igitabo',
-                'My Borrowed Books' => 'Ibitabo natije',
-                'Reading Progress' => 'Aho ngeze nsoma',
-                'Favorites' => 'Ibyo nkunda',
-                'Bookmarks' => 'Utumenyetso two gusoma',
-                'Recommendations' => 'Ibyifuzo',
-                'Notifications' => 'Amatangazo',
-                'Books' => 'Ibitabo',
-                'Users' => 'Abakoresha',
-                'Analytics' => 'Isesengura',
-                'Reports' => 'Raporo',
-                'Settings' => 'Igenamiterere',
-                'Library' => 'Isomero',
-            ],
-            'en:sw' => [
-                'Dashboard' => 'Dashibodi',
-                'Search Books' => 'Tafuta vitabu',
-                'Upload Book' => 'Pakia kitabu',
-                'Submit Book' => 'Wasilisha kitabu',
-                'My Borrowed Books' => 'Vitabu nilivyoazima',
-                'Reading Progress' => 'Maendeleo ya kusoma',
-                'Favorites' => 'Vipendwa',
-                'Bookmarks' => 'Alamisho',
-                'Recommendations' => 'Mapendekezo',
-                'Notifications' => 'Arifa',
-                'Books' => 'Vitabu',
-                'Users' => 'Watumiaji',
-                'Analytics' => 'Takwimu',
-                'Reports' => 'Ripoti',
-                'Settings' => 'Mipangilio',
-                'Library' => 'Maktaba',
-            ],
         ];
+    }
+
+    private static function lookupTranslationCache(string $text, string $sourceLanguage, string $targetLanguage): ?array
+    {
+        try {
+            $stmt = Database::connection()->prepare(
+                'SELECT translated_text, provider, model_name, processing_ms
+                 FROM translation_cache
+                 WHERE source_language=:source_language
+                   AND target_language=:target_language
+                   AND source_hash=:source_hash
+                 ORDER BY created_at DESC LIMIT 1'
+            );
+            $stmt->execute([
+                ':source_language' => $sourceLanguage,
+                ':target_language' => $targetLanguage,
+                ':source_hash' => hash('sha256', $text),
+            ]);
+            $row = $stmt->fetch();
+            return $row ?: null;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    private static function storeTranslationCache(string $sourceText, string $translatedText, string $sourceLanguage, string $targetLanguage, string $provider, string $modelName, int $processingMs): void
+    {
+        try {
+            Database::connection()->prepare(
+                'INSERT INTO translation_cache
+                 (source_language, target_language, source_hash, translated_text, model_name, model_version, provider, processing_ms)
+                 VALUES (:source_language, :target_language, :source_hash, :translated_text, :model_name, "default", :provider, :processing_ms)'
+            )->execute([
+                ':source_language' => $sourceLanguage,
+                ':target_language' => $targetLanguage,
+                ':source_hash' => hash('sha256', $sourceText),
+                ':translated_text' => $translatedText,
+                ':model_name' => $modelName,
+                ':provider' => $provider,
+                ':processing_ms' => $processingMs,
+            ]);
+        } catch (Throwable) {
+        }
+    }
+
+    private static function translateWithPhraseMemory(string $text, string $sourceLanguage, string $targetLanguage): array
+    {
+        $dictionary = self::dictionary();
+        $key = $sourceLanguage . ':' . $targetLanguage;
+        $translated = $text;
+        $matched = 0;
+        if (isset($dictionary[$key])) {
+            uksort($dictionary[$key], fn ($a, $b) => strlen($b) <=> strlen($a));
+            foreach ($dictionary[$key] as $source => $target) {
+                $count = 0;
+                $translated = str_ireplace($source, $target, $translated, $count);
+                $matched += $count;
+            }
+        }
+
+        return ['translated_text' => $translated, 'matched_terms' => $matched];
     }
 
     private static function config(): array

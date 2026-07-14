@@ -9,4 +9,7 @@ scipy
 torch
 transformers
 datasets
+pandas
+accelerate
+openpyxl
 sentencepiece==0.2.0

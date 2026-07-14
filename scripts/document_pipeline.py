@@ -182,7 +182,7 @@ def main() -> int:
     page_parser = subparsers.add_parser("extract-page")
     page_parser.add_argument("source")
     page_parser.add_argument("--page", type=int, default=1)
-    page_parser.add_argument("--max-chars", type=int, default=3000)
+    page_parser.add_argument("--max-chars", type=int, default=100000)
 
     args = parser.parse_args()
     source = Path(args.source).resolve()

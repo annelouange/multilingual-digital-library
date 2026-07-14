@@ -35,8 +35,8 @@ export default function Login() {
         <div className="login-showcase-copy">
           <img className="login-logo" src="/library-logo.svg" alt="Rwanda Library Network logo" />
           <p className="eyebrow">Rwanda Library Network</p>
-          <h1>Search. Read. Listen.</h1>
-          <p>Access Rwanda's multilingual knowledge platform with voice search, online reading, and intelligent narration for inclusive learning.</p>
+          <h1>Learn. Discover. Grow.</h1>
+          <p>Open a calm learning space for English and French books, smart recommendations, online reading, and clear narration.</p>
         </div>
       </section>
       <section className="auth-panel login-panel">
@@ -60,7 +60,7 @@ export default function Login() {
             Password
             <input type="password" autoComplete="current-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
           </label>
-          <Button type="submit" disabled={loading}>{loading ? 'Signing in...' : 'Enter Digital Library'}</Button>
+          <Button type="submit" disabled={loading}>{loading ? 'Opening your library...' : 'Start Learning Today'}</Button>
         </form>
         <div className="auth-links">
           <Link to="/register">Create account</Link>

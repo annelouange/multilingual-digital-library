@@ -9,6 +9,7 @@ $EnableTransformerStt = $true
 $EnableSpeechT5Tts = $true
 $EnableMmsTts = $true
 $EnableNllbTranslation = $true
+$EnableSmartTranslation = $true
 $flags = Join-Path $PSScriptRoot 'speech_service_flags.ps1'
 if (Test-Path -LiteralPath $flags) {
     . $flags
@@ -55,7 +56,16 @@ $services = @(
         Error = 'speecht5-tts.err.log'
     },
     @{
-        Name = 'NLLB Translation'
+        Name = 'Smart Translation AI service'
+        Enabled = $EnableSmartTranslation
+        Port = 8001
+        Script = '-m uvicorn app.main:app --host 127.0.0.1 --port 8001'
+        WorkingDirectory = 'ai-service'
+        Output = 'smart-translation.out.log'
+        Error = 'smart-translation.err.log'
+    },
+    @{
+        Name = 'Legacy NLLB Translation'
         Enabled = $EnableNllbTranslation
         Port = 5008
         Script = 'scripts\nllb_translation_service.py'
@@ -71,10 +81,11 @@ foreach ($service in $services) {
     }
     $listener = Get-PortListener $service.Port
     if (!$listener) {
+        $serviceWorkingDirectory = if ($service.WorkingDirectory) { Join-Path $root $service.WorkingDirectory } else { $root }
         $process = Start-Process `
             -FilePath $python `
             -ArgumentList $service.Script `
-            -WorkingDirectory $root `
+            -WorkingDirectory $serviceWorkingDirectory `
             -WindowStyle Hidden `
             -RedirectStandardOutput (Join-Path $logDirectory $service.Output) `
             -RedirectStandardError (Join-Path $logDirectory $service.Error) `
